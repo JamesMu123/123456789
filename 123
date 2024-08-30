@@ -1,0 +1,49 @@
+import torch
+import torch.nn as nn
+import torch.onnx
+
+class PRNetGenerator(nn.Module):
+    def __init__(self):
+        super(PRNetGenerator, self).__init__()
+        # 大尺度分支
+        self.large_scale = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=5, stride=2),
+            nn.ReLU()
+        )
+        # 中尺度分支
+        self.mid_scale = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        # 小尺度分支
+        self.small_scale = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(128),
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(256)
+        )
+
+    def forward(self, x):
+        large_feature = self.large_scale(x)
+        mid_feature = self.mid_scale(x)
+        small_feature = self.small_scale(x)
+        return torch.cat([large_feature, mid_feature, small_feature], dim=1)
+
+# 创建网络实例
+net = PRNetGenerator()
+
+# 创建一个虚拟输入，用于导出模型
+dummy_input = torch.randn(1, 3, 224, 224)
+
+# 导出模型为 ONNX 格式
+torch.onnx.export(net, dummy_input, "prnet_generator.onnx", opset_version=11)
